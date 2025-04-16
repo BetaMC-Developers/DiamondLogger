@@ -2,3 +2,8 @@ name: DiamondLogger
 main: org.betamc.diamondlogger.DiamondLogger
 version: ${project.version}
 author: zavdav
+
+commands:
+  reloaddl:
+    description: Reloads DiamondLogger.
+    usage: /reloaddl

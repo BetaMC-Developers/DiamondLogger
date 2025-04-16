@@ -1,6 +1,8 @@
 package org.betamc.diamondlogger;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashMap;
@@ -16,7 +18,11 @@ public class DiamondLogger extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        instance = this;
+        if (instance == null) {
+            instance = this;
+            Bukkit.getPluginCommand("reloaddl").setExecutor(this);
+            Bukkit.getPluginManager().registerEvents(new BlockListener(), this);
+        }
 
         getConfiguration().load();
         webhookUrl = getConfiguration().getString("webhook_url", "changethis");
@@ -24,7 +30,6 @@ public class DiamondLogger extends JavaPlugin {
         threshold = getConfiguration().getInt("threshold", 20);
         getConfiguration().save();
 
-        Bukkit.getPluginManager().registerEvents(new BlockListener(), this);
         Bukkit.getLogger().info("[DiamondLogger] Version " + getDescription().getVersion() + " has been enabled.");
     }
 
@@ -33,4 +38,10 @@ public class DiamondLogger extends JavaPlugin {
         Bukkit.getLogger().info("[DiamondLogger] Version " + getDescription().getVersion() + " has been disabled.");
     }
 
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        onDisable();
+        onEnable();
+        return true;
+    }
 }
