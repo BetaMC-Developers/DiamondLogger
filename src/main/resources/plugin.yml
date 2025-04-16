@@ -1,0 +1,4 @@
+name: DiamondLogger
+main: org.betamc.diamondlogger.DiamondLogger
+version: ${project.version}
+author: zavdav
