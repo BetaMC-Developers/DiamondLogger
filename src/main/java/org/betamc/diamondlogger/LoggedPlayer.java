@@ -32,11 +32,28 @@ public class LoggedPlayer {
 
     public void checkDiamondsMined() {
         if (diamondsMined.get() >= DiamondLogger.threshold) {
-            sendDiscordEmbed();
+            Location loc = player.getLocation();
+            String locationStr = String.format("%s, %d, %d, %d", loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+
+            Bukkit.getLogger().info("[Diamond Logger] " + player.getName() + " mined " + diamondsMined.get() +
+                    " diamond ore in the last " + DiamondLogger.interval + " seconds at " + locationStr);
+            sendIngameMessage(locationStr);
+            sendDiscordEmbed(locationStr);
         }
     }
 
-    public void sendDiscordEmbed() {
+    public void sendIngameMessage(String locationStr) {
+        for(Player iPlayer : Bukkit.getServer().getOnlinePlayers()) {
+            if (iPlayer.isOp() || iPlayer.hasPermission("diamondlogger.recievemessage")) {
+                iPlayer.sendMessage("§b[Diamond Logger]");
+                iPlayer.sendMessage("§3" + player.getName() + "§7 mined §b" + diamondsMined.get() +
+                        "§7 diamond ore in the last §b" + DiamondLogger.interval + "§7 seconds");
+                iPlayer.sendMessage("§7Current location: §f" + locationStr);
+            }
+        }
+    }
+
+    public void sendDiscordEmbed(String locationStr) {
         executor.submit(() -> {
             DiscordWebhook webhook = new DiscordWebhook(DiamondLogger.webhookUrl);
             webhook.setUsername("Diamond Logger");
@@ -49,14 +66,14 @@ public class LoggedPlayer {
                     .setFooter("https://github.com/BetaMC-Developers/DiamondLogger",
                                "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png");
 
-            Location loc = player.getLocation();
-            String locationStr = String.format("`%s, %d, %d, %d`", loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
-            embed.addField("Current Location", locationStr, false);
+            embed.addField("Current Location", "`" + locationStr + "`", false);
             webhook.addEmbed(embed);
 
             try {
                 webhook.execute();
-            } catch (IOException e) {}
+            } catch (IOException e) {
+                Bukkit.getLogger().info("[Diamond Logger] Discord embed send failed");
+            }
         });
     }
 
