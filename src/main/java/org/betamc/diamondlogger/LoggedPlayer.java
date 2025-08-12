@@ -33,27 +33,28 @@ public class LoggedPlayer {
     public void checkDiamondsMined() {
         if (diamondsMined.get() >= DiamondLogger.threshold) {
             Location loc = player.getLocation();
-            String locationStr = String.format("%s, %d, %d, %d", loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+            String worldStr = loc.getWorld().getName() + ": ";
+            String locationStr = String.format("/tp %s %d %d", loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
 
             Bukkit.getLogger().info("[Diamond Logger] " + player.getName() + " mined " + diamondsMined.get() +
-                    " diamond ore in the last " + DiamondLogger.interval + " seconds at " + locationStr);
-            sendIngameMessage(locationStr);
-            sendDiscordEmbed(locationStr);
+                    " diamond ore in the last " + DiamondLogger.interval + " seconds at " + worldStr + locationStr);
+            sendIngameMessage(locationStr, worldStr);
+            sendDiscordEmbed(locationStr, worldStr);
         }
     }
 
-    public void sendIngameMessage(String locationStr) {
+    public void sendIngameMessage(String locationStr, String worldStr) {
         for(Player iPlayer : Bukkit.getServer().getOnlinePlayers()) {
             if (iPlayer.isOp() || iPlayer.hasPermission("diamondlogger.recievemessage")) {
                 iPlayer.sendMessage("§b[Diamond Logger]");
                 iPlayer.sendMessage("§3" + player.getName() + "§7 mined §b" + diamondsMined.get() +
                         "§7 diamond ore in the last §b" + DiamondLogger.interval + "§7 seconds");
-                iPlayer.sendMessage("§7Current location: §f" + locationStr);
+                iPlayer.sendMessage("§7Current location: §f" + worldStr + locationStr);
             }
         }
     }
 
-    public void sendDiscordEmbed(String locationStr) {
+    public void sendDiscordEmbed(String locationStr, String worldStr) {
         executor.submit(() -> {
             DiscordWebhook webhook = new DiscordWebhook(DiamondLogger.webhookUrl);
             webhook.setUsername("Diamond Logger");
@@ -66,7 +67,7 @@ public class LoggedPlayer {
                     .setFooter("https://github.com/BetaMC-Developers/DiamondLogger",
                                "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png");
 
-            embed.addField("Current Location", "`" + locationStr + "`", false);
+            embed.addField("Current Location in " + worldStr, "```" + locationStr + "```", false);
             webhook.addEmbed(embed);
 
             try {
