@@ -1,81 +1,119 @@
 package org.betamc.diamondlogger;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Location;
+import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 
 import java.awt.Color;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
 
 public class LoggedPlayer {
 
-    private static final ExecutorService executor = Executors.newFixedThreadPool(3);
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+
     private final Player player;
-    private final AtomicInteger diamondsMined;
+    private final Map<OreType, AtomicInteger> oresMined = new EnumMap<>(OreType.class);
 
     public LoggedPlayer(Player player) {
         this.player = player;
-        this.diamondsMined = new AtomicInteger(0);
 
-        Bukkit.getScheduler().scheduleSyncDelayedTask(DiamondLogger.instance, () -> {
-            checkDiamondsMined();
-            DiamondLogger.loggedPlayers.remove(player.getUniqueId());
-        }, DiamondLogger.interval * 20L);
+        DiamondLogger dl = DiamondLogger.getInstance();
+        Bukkit.getScheduler().scheduleSyncDelayedTask(dl, () -> {
+            checkOresMined();
+            dl.getLoggedPlayers().remove(player.getUniqueId());
+        }, dl.getInterval() * 20L);
     }
 
-    public void incrementDiamondsMined() {
-        diamondsMined.getAndIncrement();
+    public void incrementOreMined(OreType oreType) {
+        this.oresMined.computeIfAbsent(oreType, k -> new AtomicInteger(0)).incrementAndGet();
     }
 
-    public void checkDiamondsMined() {
-        if (diamondsMined.get() >= DiamondLogger.threshold) {
-            Location loc = player.getLocation();
-            String worldStr = loc.getWorld().getName() + ": ";
-            String locationStr = String.format("/tp %s %d %d", loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
-
-            Bukkit.getLogger().info("[Diamond Logger] " + player.getName() + " mined " + diamondsMined.get() +
-                    " diamond ore in the last " + DiamondLogger.interval + " seconds at " + worldStr + locationStr);
-            sendIngameMessage(locationStr, worldStr);
-            sendDiscordEmbed(locationStr, worldStr);
+    private void checkOresMined() {
+        if (this.oresMined.entrySet().stream().anyMatch(entry ->
+                exceededThreshold(entry.getKey(), entry.getValue().get()))) {
+            sendIngameMessage();
+            sendDiscordEmbed();
         }
     }
 
-    public void sendIngameMessage(String locationStr, String worldStr) {
-        for(Player iPlayer : Bukkit.getServer().getOnlinePlayers()) {
-            if (iPlayer.isOp() || iPlayer.hasPermission("diamondlogger.recievemessage")) {
-                iPlayer.sendMessage("§b[Diamond Logger]");
-                iPlayer.sendMessage("§3" + player.getName() + "§7 mined §b" + diamondsMined.get() +
-                        "§7 diamond ore in the last §b" + DiamondLogger.interval + "§7 seconds");
-                iPlayer.sendMessage("§7Current location: §f" + worldStr + locationStr);
-            }
-        }
+    private void sendIngameMessage() {
+        Arrays.stream(Bukkit.getOnlinePlayers())
+                .filter(player -> player.hasPermission("diamondlogger.receivemessage"))
+                .forEach(player -> {
+                    player.sendMessage(ChatColor.AQUA + "[Diamond Logger]");
+                    player.sendMessage(ChatColor.DARK_AQUA + this.player.getName()
+                            + ChatColor.GRAY + " mined the following ores in the last "
+                            + ChatColor.AQUA + DiamondLogger.getInstance().getInterval() + " seconds"
+                            + ChatColor.GRAY + ":");
+
+                    for (Map.Entry<OreType, AtomicInteger> entry : this.oresMined.entrySet()) {
+                        OreType oreType = entry.getKey();
+                        int amountMined = entry.getValue().get();
+                        if (amountMined == 0) {
+                            continue;
+                        }
+
+                        ChatColor color = exceededThreshold(oreType, amountMined) ? ChatColor.RED : ChatColor.GREEN;
+                        String oreSum = color + "- " + amountMined + "x " + oreType.getOreName();
+                        player.sendMessage(oreSum);
+                    }
+                });
     }
 
-    public void sendDiscordEmbed(String locationStr, String worldStr) {
-        executor.submit(() -> {
-            DiscordWebhook webhook = new DiscordWebhook(DiamondLogger.webhookUrl);
+    private void sendDiscordEmbed() {
+        DiamondLogger dl = DiamondLogger.getInstance();
+        EXECUTOR.submit(() -> {
+            DiscordWebhook webhook = new DiscordWebhook(dl.getWebhookUrl());
             webhook.setUsername("Diamond Logger");
             webhook.setTts(false);
 
             DiscordWebhook.EmbedObject embed = new DiscordWebhook.EmbedObject()
-                    .setAuthor(player.getName(), null, "https://minotar.net/avatar/" + player.getName() + ".png")
-                    .setDescription("Mined **" + diamondsMined.get() + "** diamond ore in the last " + DiamondLogger.interval + " seconds")
+                    .setAuthor(this.player.getName(), null, "https://minotar.net/avatar/" + this.player.getName() + ".png")
+                    .setTitle("Mined the following ores in the last " + dl.getInterval() + " seconds:")
                     .setColor(Color.CYAN)
                     .setFooter("https://github.com/BetaMC-Developers/DiamondLogger",
                                "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png");
 
-            embed.addField("Current Location in " + worldStr, "```" + locationStr + "```", false);
+            StringBuilder desc = new StringBuilder();
+            for (Map.Entry<OreType, AtomicInteger> entry : this.oresMined.entrySet()) {
+                OreType oreType = entry.getKey();
+                int amountMined = entry.getValue().get();
+                if (amountMined == 0) {
+                    continue;
+                }
+
+                boolean exceededThreshold = exceededThreshold(oreType, amountMined);
+                desc.append("- ");
+                if (exceededThreshold) {
+                    desc.append("**");
+                }
+                desc.append(amountMined).append("x ").append(oreType.getOreName());
+                if (exceededThreshold) {
+                    desc.append("**");
+                }
+                desc.append("\\n");
+            }
+            desc.delete(desc.length() - 2, desc.length());
+            embed.setDescription(desc.toString());
             webhook.addEmbed(embed);
 
             try {
                 webhook.execute();
             } catch (IOException e) {
-                Bukkit.getLogger().info("[Diamond Logger] Discord embed send failed");
+                Bukkit.getLogger().log(Level.SEVERE, "[Diamond Logger] Discord embed send failed: ", e);
             }
         });
     }
 
+    private static boolean exceededThreshold(OreType oreType, int amountMined) {
+        int threshold = DiamondLogger.getInstance().getThresholds().getOrDefault(oreType, -1);
+        return threshold != -1 && amountMined > threshold;
+    }
 }

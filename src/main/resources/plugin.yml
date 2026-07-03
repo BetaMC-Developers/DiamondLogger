@@ -12,3 +12,6 @@ permissions:
   diamondlogger.reload:
     description: Allows access to /reloaddl
     default: op
+  diamondlogger.receivemessage:
+    description: Makes a player receive DiamondLogger messages
+    default: op

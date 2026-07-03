@@ -1,6 +1,5 @@
 package org.betamc.diamondlogger;
 
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -11,16 +10,14 @@ public class BlockListener implements Listener {
 
     @EventHandler(ignoreCancelled = true, priority = Event.Priority.Monitor)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (event.getBlock().getType() != Material.DIAMOND_ORE) return;
-        Player player = event.getPlayer();
-
-        LoggedPlayer lPlayer = DiamondLogger.loggedPlayers.get(event.getPlayer().getUniqueId());
-        if (lPlayer == null) {
-            lPlayer = new LoggedPlayer(player);
-            DiamondLogger.loggedPlayers.put(player.getUniqueId(), lPlayer);
+        OreType oreType = OreType.getByMaterial(event.getBlock().getType());
+        if (oreType == null) {
+            return;
         }
 
-        lPlayer.incrementDiamondsMined();
+        Player player = event.getPlayer();
+        DiamondLogger.getInstance().getLoggedPlayers()
+                .computeIfAbsent(player.getUniqueId(), k -> new LoggedPlayer(player))
+                .incrementOreMined(oreType);
     }
-
 }

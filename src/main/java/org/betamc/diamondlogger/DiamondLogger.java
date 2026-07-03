@@ -6,16 +6,19 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class DiamondLogger extends JavaPlugin {
 
-    static DiamondLogger instance;
-    static String webhookUrl;
-    static int interval;
-    static int threshold;
-    static final HashMap<UUID, LoggedPlayer> loggedPlayers = new HashMap<>();
+    private static DiamondLogger instance;
+
+    private String webhookUrl;
+    private int interval;
+    private final Map<OreType, Integer> thresholds = new EnumMap<>(OreType.class);
+    private final Map<UUID, LoggedPlayer> loggedPlayers = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -26,9 +29,11 @@ public class DiamondLogger extends JavaPlugin {
         }
 
         getConfiguration().load();
-        webhookUrl = getConfiguration().getString("webhook_url", "changethis");
-        interval = getConfiguration().getInt("interval", 300);
-        threshold = getConfiguration().getInt("threshold", 20);
+        this.webhookUrl = getConfiguration().getString("webhook_url", "changethis");
+        this.interval = getConfiguration().getInt("interval", 300);
+        for (OreType oreType : OreType.values()) {
+            this.thresholds.put(oreType, getConfiguration().getInt("thresholds." + oreType.name(), -1));
+        }
         getConfiguration().save();
 
         Bukkit.getLogger().info("[DiamondLogger] Version " + getDescription().getVersion() + " has been enabled.");
@@ -49,5 +54,25 @@ public class DiamondLogger extends JavaPlugin {
         onDisable();
         onEnable();
         return true;
+    }
+
+    public static DiamondLogger getInstance() {
+        return instance;
+    }
+
+    public String getWebhookUrl() {
+        return this.webhookUrl;
+    }
+
+    public int getInterval() {
+        return this.interval;
+    }
+
+    public Map<OreType, Integer> getThresholds() {
+        return this.thresholds;
+    }
+
+    public Map<UUID, LoggedPlayer> getLoggedPlayers() {
+        return this.loggedPlayers;
     }
 }
