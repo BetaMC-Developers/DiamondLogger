@@ -7,3 +7,8 @@ commands:
   reloaddl:
     description: Reloads DiamondLogger.
     usage: /reloaddl
+
+permissions:
+  diamondlogger.reload:
+    description: Allows access to /reloaddl
+    default: op
